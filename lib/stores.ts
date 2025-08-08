@@ -258,19 +258,55 @@ interface ProjectCreationState {
   
   // Project data
   projectData: {
+    // Basic info (Step 1)
     title: string;
     description: string;
     problemStatement: string;
     category: string;
     subcategory: string;
     complexity: 'beginner' | 'intermediate' | 'advanced';
+    
+    // Team info (Step 3)
+    isTeamProject: boolean;
+    maxTeamSize: number;
+    requiredSkills: string[];
     skills: string[];
-    resources: string[];
     teamMembers: Array<{
       userId: string;
       username: string;
       role: string;
     }>;
+    workingAlone: boolean;
+    mentorRequested: boolean;
+    
+    // Planning info (Step 4)
+    startDate: string;
+    targetCompletionDate: string;
+    estimatedBudget: number;
+    constraints: string[];
+    milestones: Array<{
+      id: string;
+      title: string;
+      description: string;
+      targetDate: string;
+      dependencies: string[];
+      isCompleted: boolean;
+    }>;
+    riskAssessment: string;
+    successMetrics: string[];
+    
+    // Launch info (Step 5)
+    type: 'healthcare' | 'agriculture' | 'infrastructure' | 'industrial' | 'environmental' | 'other';
+    discipline: 'computer_science' | 'electrical_engineering' | 'mechanical_engineering' | 'civil_engineering' | 'interdisciplinary';
+    industry: string;
+    tags: string[];
+    repositoryUrl: string;
+    documentationUrl: string;
+    isPublic: boolean;
+    
+    // AI and other data
+    aiAnalysis?: any;
+    resources: string[];
   };
   
   // AI classification
@@ -305,15 +341,44 @@ export const useProjectCreationStore = create<ProjectCreationState & ProjectCrea
       currentStep: 1,
       maxStep: 5,
       projectData: {
+        // Basic info (Step 1)
         title: '',
         description: '',
         problemStatement: '',
         category: '',
         subcategory: '',
         complexity: 'beginner',
+        
+        // Team info (Step 3)
+        isTeamProject: false,
+        maxTeamSize: 4,
+        requiredSkills: [],
         skills: [],
-        resources: [],
         teamMembers: [],
+        workingAlone: false,
+        mentorRequested: false,
+        
+        // Planning info (Step 4)
+        startDate: '',
+        targetCompletionDate: '',
+        estimatedBudget: 0,
+        constraints: [],
+        milestones: [],
+        riskAssessment: '',
+        successMetrics: [],
+        
+        // Launch info (Step 5)
+        type: 'other',
+        discipline: 'interdisciplinary',
+        industry: '',
+        tags: [],
+        repositoryUrl: '',
+        documentationUrl: '',
+        isPublic: true,
+        
+        // AI and other data
+        aiAnalysis: null,
+        resources: [],
       },
       aiClassification: null,
       isClassifying: false,
@@ -332,15 +397,44 @@ export const useProjectCreationStore = create<ProjectCreationState & ProjectCrea
       resetWizard: () => set({
         currentStep: 1,
         projectData: {
+          // Basic info (Step 1)
           title: '',
           description: '',
           problemStatement: '',
           category: '',
           subcategory: '',
           complexity: 'beginner',
+          
+          // Team info (Step 3)
+          isTeamProject: false,
+          maxTeamSize: 4,
+          requiredSkills: [],
           skills: [],
-          resources: [],
           teamMembers: [],
+          workingAlone: false,
+          mentorRequested: false,
+          
+          // Planning info (Step 4)
+          startDate: '',
+          targetCompletionDate: '',
+          estimatedBudget: 0,
+          constraints: [],
+          milestones: [],
+          riskAssessment: '',
+          successMetrics: [],
+          
+          // Launch info (Step 5)
+          type: 'other' as const,
+          discipline: 'interdisciplinary' as const,
+          industry: '',
+          tags: [],
+          repositoryUrl: '',
+          documentationUrl: '',
+          isPublic: true,
+          
+          // AI and other data
+          aiAnalysis: null,
+          resources: [],
         },
         aiClassification: null,
         isClassifying: false,
@@ -353,15 +447,44 @@ export const useProjectCreationStore = create<ProjectCreationState & ProjectCrea
       })),
       resetProjectData: () => set({
         projectData: {
+          // Basic info (Step 1)
           title: '',
           description: '',
           problemStatement: '',
           category: '',
           subcategory: '',
           complexity: 'beginner',
+          
+          // Team info (Step 3)
+          isTeamProject: false,
+          maxTeamSize: 4,
+          requiredSkills: [],
           skills: [],
-          resources: [],
           teamMembers: [],
+          workingAlone: false,
+          mentorRequested: false,
+          
+          // Planning info (Step 4)
+          startDate: '',
+          targetCompletionDate: '',
+          estimatedBudget: 0,
+          constraints: [],
+          milestones: [],
+          riskAssessment: '',
+          successMetrics: [],
+          
+          // Launch info (Step 5)
+          type: 'other' as const,
+          discipline: 'interdisciplinary' as const,
+          industry: '',
+          tags: [],
+          repositoryUrl: '',
+          documentationUrl: '',
+          isPublic: true,
+          
+          // AI and other data
+          aiAnalysis: null,
+          resources: [],
         }
       }),
       

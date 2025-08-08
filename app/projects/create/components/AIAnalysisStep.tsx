@@ -92,6 +92,11 @@ export function AIAnalysisStep({ onNext, onPrevious }: AIAnalysisStepProps) {
       });
 
       if (result?.data) {
+        console.log('AI Classification Result:', result.data);
+        console.log('Category:', result.data.category, typeof result.data.category);
+        console.log('Subcategory:', result.data.subcategory, typeof result.data.subcategory);
+        console.log('Complexity:', result.data.complexity, typeof result.data.complexity);
+        
         setAIClassification(result.data);
         // Also update the project data with AI suggestions
         updateProjectData({
@@ -101,6 +106,8 @@ export function AIAnalysisStep({ onNext, onPrevious }: AIAnalysisStepProps) {
           skills: result.data.skills,
           resources: result.data.resources,
         });
+      } else {
+        console.warn('No data in AI classification result:', result);
       }
     } catch (error: any) {
       console.error('AI Classification failed:', error);
@@ -167,8 +174,14 @@ export function AIAnalysisStep({ onNext, onPrevious }: AIAnalysisStepProps) {
     });
   };
 
-  const formatLabel = (value: string) => 
-    value.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const formatLabel = (value: string | undefined) => {
+    console.log('formatLabel called with:', value, typeof value);
+    if (!value || typeof value !== 'string') {
+      console.warn('formatLabel received invalid value:', value);
+      return 'Unknown';
+    }
+    return value.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   const renderAnalysisStatus = () => {
     if (isClassifying) {

@@ -3,19 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+import { InnovationProject } from '@/lib/types';
 import { 
   Rocket, 
-  CheckCircle, 
   Users, 
   Calendar, 
-  Target, 
   DollarSign, 
   AlertTriangle,
-  Github,
   Globe,
   FileText,
-  Share2,
   Crown,
   Zap
 } from 'lucide-react';
@@ -24,8 +20,8 @@ interface ProjectFormData {
   title: string;
   description: string;
   problemStatement: string;
-  type: string;
-  discipline: string;
+  type: InnovationProject['type'];
+  discipline: InnovationProject['discipline'];
   industry: string;
   tags: string[];
   isTeamProject: boolean;

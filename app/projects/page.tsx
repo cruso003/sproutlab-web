@@ -11,11 +11,9 @@ import {
   Lightbulb, 
   Plus, 
   Search, 
-  Filter,
   Calendar,
   Users,
   Zap,
-  BarChart3,
   Eye,
   Edit,
   Star,
@@ -23,8 +21,7 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { useProjects, useAuth, useProjectStats } from '@/lib/hooks';
-import { useUIStore } from '@/lib/stores';
+import { useProjects, useProjectStats } from '@/lib/hooks';
 import Sidebar from '@/components/layout/sidebar';
 
 export default function ProjectsPage() {
@@ -32,12 +29,8 @@ export default function ProjectsPage() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   
   const router = useRouter();
-  const { user } = useAuth();
   const { data: projects, isLoading } = useProjects();
   const { data: projectStats, isLoading: statsLoading } = useProjectStats();
-  const { addNotification, openModal } = useUIStore();
-
-  console.log("projects:", projects);
   
   // Type assertion to help TypeScript understand projects is an array
   const projectsArray = projects as any[] | null;

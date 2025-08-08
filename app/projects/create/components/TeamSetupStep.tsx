@@ -23,17 +23,33 @@ import {
   UserCheck
 } from 'lucide-react';
 import { useSearchUsers } from '@/lib/hooks';
+import { useAuth } from '@/lib/auth-context';
 
 interface TeamMember {
   id: string;
   name: string;
   email: string;
+  username?: string;
   role: string;
   type: 'creator' | 'student' | 'mentor' | 'staff';
   skills: string[];
   availability: string;
   isConfirmed: boolean;
+  status?: 'pending' | 'confirmed';
   profilePicture?: string;
+  tempUserId?: string; // For pending invitations during project creation
+}
+
+interface PendingInvitation {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  type: 'student' | 'staff';
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  sentAt: string;
+  message?: string;
 }
 
 interface ProjectFormData {
@@ -43,6 +59,7 @@ interface ProjectFormData {
   maxTeamSize: number;
   requiredSkills: string[];
   teamMembers?: TeamMember[];
+  pendingInvitations?: PendingInvitation[];
   teamSuggestions?: any;
   workingAlone?: boolean;
   mentorRequested?: boolean;
@@ -64,18 +81,32 @@ export function TeamSetupStep({
   const [newSkill, setNewSkill] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');
   const [inviteType, setInviteType] = useState<'student' | 'mentor' | 'staff'>('student');
   const [searchQuery, setSearchQuery] = useState('');
   const [validationMessage, setValidationMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Use the search hook instead of manual fetch
   const { data: searchResults = [], isLoading: isSearching } = useSearchUsers(searchQuery);
 
-  // Mock current user (in real app, this would come from auth context)
-  const currentUser: TeamMember = {
-    id: 'current-user',
-    name: 'John Doe',
-    email: 'john.doe@iuea.ac.ug',
+  // Get current user from auth context
+  const { user } = useAuth();
+  
+  // Create current user object from auth data
+  const currentUser: TeamMember = user ? {
+    id: user.id,
+    name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || 'Unknown User',
+    email: user.email,
+    role: 'Project Creator',
+    type: 'creator',
+    skills: [], // This could be populated from user profile if available
+    availability: 'Available',
+    isConfirmed: true
+  } : {
+    id: 'guest-user',
+    name: 'Guest User',
+    email: 'guest@example.com',
     role: 'Project Creator',
     type: 'creator',
     skills: [],
@@ -121,32 +152,54 @@ export function TeamSetupStep({
     });
   };
 
-  const inviteUser = (user: any) => {
-    const newMember: TeamMember = {
-      id: user.id,
-      name: `${user.firstName} ${user.lastName}`,
+  const sendInvitation = async (user: any) => {
+    if (!user) return;
+    
+    // Check if user is already in team
+    const isAlreadyInTeam = (formData.teamMembers || []).some((member: any) => 
+      member.id === user.id || member.email === user.email
+    );
+    
+    if (isAlreadyInTeam) {
+      setValidationMessage(`${user.username} is already in the team`);
+      return;
+    }
+    
+    // For project creation, we'll store invitations locally until project is created
+    // Then send actual invitations after project creation
+    const userName = user.firstName && user.lastName 
+      ? `${user.firstName} ${user.lastName}`.trim()
+      : user.username || user.email;
+
+    const newTeamMember = {
+      id: `temp-${Date.now()}`,
+      name: userName,
       email: user.email,
-      role: inviteRole || (user.role === 'staff' ? 'Mentor' : 'Team Member'),
-      type: user.role === 'staff' ? 'staff' : 'student',
+      username: user.username,
+      role: 'Team Member',
+      type: (user.role === 'staff' ? 'staff' : 'student') as 'student' | 'staff',
       skills: [],
-      availability: 'Invited',
-      isConfirmed: false
+      availability: 'Available',
+      isConfirmed: false,
+      status: 'pending' as 'pending',
+      tempUserId: user.id
     };
     
     onFormDataChange({
-      teamMembers: [...(formData.teamMembers || []), newMember],
+      teamMembers: [...(formData.teamMembers || []), newTeamMember],
       isTeamProject: true,
       workingAlone: false
     });
     
-    setInviteEmail('');
-    setInviteRole('');
-    setSearchQuery(''); // Clear search instead of setting results
-    setValidationMessage(`Invitation sent to ${user.firstName} ${user.lastName}!`);
+    setSearchQuery('');
+    setValidationMessage(`${user.username} will be invited when the project is created`);
+    
+    // Clear validation message after 3 seconds
+    setTimeout(() => setValidationMessage(''), 3000);
   };
 
   const removeTeamMember = (memberId: string) => {
-    const updatedMembers = (formData.teamMembers || []).filter(m => m.id !== memberId);
+    const updatedMembers = (formData.teamMembers || []).filter((m: any) => m.id !== memberId);
     const isStillTeamProject = updatedMembers.length > 1;
     
     onFormDataChange({
@@ -318,14 +371,28 @@ export function TeamSetupStep({
                         {searchResults.length > 0 && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">Search Results:</Label>
-                            {searchResults.map((user) => (
+                            {searchResults
+                              .filter(user => 
+                                // Exclude current user
+                                user.id !== currentUser.id && 
+                                user.email !== currentUser.email &&
+                                // Exclude already invited members
+                                !formData.teamMembers?.some(member => 
+                                  member.id === user.id || member.email === user.email
+                                )
+                              )
+                              .map((user) => (
                               <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                                 <div className="flex items-center space-x-3">
                                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                                     <UserCheck className="w-4 h-4 text-gray-600" />
                                   </div>
                                   <div>
-                                    <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
+                                    <p className="font-medium text-gray-900">
+                                      {user.firstName && user.lastName 
+                                        ? `${user.firstName} ${user.lastName}`.trim()
+                                        : user.username || user.email}
+                                    </p>
                                     <p className="text-sm text-gray-500">
                                       {user.email}
                                       {user.discipline && ` • ${user.discipline}`}
@@ -338,20 +405,25 @@ export function TeamSetupStep({
                                 </div>
                                 <Button
                                   size="sm"
-                                  onClick={() => inviteUser(user)}
-                                  disabled={formData.teamMembers?.some(m => m.id === user.id)}
+                                  onClick={() => sendInvitation(user)}
                                 >
-                                  {formData.teamMembers?.some(m => m.id === user.id) ? (
-                                    'Already Invited'
-                                  ) : (
-                                    <>
-                                      <Mail className="w-4 h-4 mr-2" />
-                                      Invite
-                                    </>
-                                  )}
+                                  <Mail className="w-4 h-4 mr-2" />
+                                  Invite
                                 </Button>
                               </div>
                             ))}
+                            {searchResults
+                              .filter(user => 
+                                user.id !== currentUser.id && 
+                                user.email !== currentUser.email &&
+                                !formData.teamMembers?.some(member => 
+                                  member.id === user.id || member.email === user.email
+                                )
+                              ).length === 0 && searchResults.length > 0 && (
+                              <p className="text-sm text-gray-500 py-4 text-center">
+                                No available users found. All users are either already invited or cannot be invited.
+                              </p>
+                            )}
                           </div>
                         )}
 
@@ -493,6 +565,8 @@ export function TeamSetupStep({
                                 <p className="text-xs text-gray-400">
                                   Status: {member.isConfirmed ? (
                                     <span className="text-green-600 font-medium">Confirmed</span>
+                                  ) : member.status === 'pending' ? (
+                                    <span className="text-orange-600 font-medium">Pending Invitation</span>
                                   ) : (
                                     <span className="text-yellow-600 font-medium">{member.availability}</span>
                                   )}

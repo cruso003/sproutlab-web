@@ -108,14 +108,102 @@ export default function CreateProjectPage() {
 
   const handleCreateProject = async () => {
     try {
-      const result = await createProjectAsync(projectData);
-      if (result) {
+      // Transform store data to match InnovationProject interface
+      const transformedData = {
+        title: projectData.title,
+        description: projectData.description,
+        problemStatement: projectData.problemStatement,
+        
+        // Map category to the correct type enum
+        type: mapCategoryToType(projectData.category),
+        
+        // Map subcategory to the correct discipline enum  
+        discipline: mapSubcategoryToDiscipline(projectData.subcategory),
+        
+        // Use tags if available, otherwise use skills
+        tags: projectData.tags.length > 0 ? projectData.tags : projectData.skills,
+        
+        // Team information
+        isTeamProject: projectData.isTeamProject,
+        maxTeamSize: projectData.maxTeamSize,
+        
+        // Timeline
+        startDate: projectData.startDate,
+        targetCompletionDate: projectData.targetCompletionDate,
+        
+        // Documentation
+        repository: projectData.repositoryUrl,
+        documentationUrl: projectData.documentationUrl,
+        
+        // Default status
+        status: 'ideation' as const,
+      };
+
+      const result = await createProjectAsync(transformedData);
+      if (result && result.data) {
         console.log('Project created:', result);
+        
+        // Send invitations to team members if any
+        await sendTeamInvitations(result.data.id, projectData.teamMembers);
+        
         // Success is handled by useEffect above
       }
     } catch (error) {
       console.error('Failed to create project:', error);
     }
+  };
+
+  const sendTeamInvitations = async (projectId: string, teamMembers: any[]) => {
+    // Filter out the creator and send invitations for pending members
+    const pendingInvitations = teamMembers.filter(member => 
+      member.status === 'pending' && member.tempUserId
+    );
+
+    for (const member of pendingInvitations) {
+      try {
+        const response = await fetch('/api/invitations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            projectId: projectId,
+            invitedUserId: member.tempUserId,
+            proposedRole: 'member',
+            message: `You've been invited to join "${projectData.title}"! We'd love to have you as part of our team.`
+          })
+        });
+
+        if (response.ok) {
+          console.log(`Invitation sent to ${member.email}`);
+        } else {
+          console.error(`Failed to send invitation to ${member.email}`);
+        }
+      } catch (error) {
+        console.error(`Error sending invitation to ${member.email}:`, error);
+      }
+    }
+  };
+
+  // Helper functions to map categories to enum values
+  const mapCategoryToType = (category: string): 'healthcare' | 'agriculture' | 'infrastructure' | 'industrial' | 'environmental' | 'other' => {
+    const categoryLower = category.toLowerCase();
+    if (categoryLower.includes('health')) return 'healthcare';
+    if (categoryLower.includes('agriculture') || categoryLower.includes('farm')) return 'agriculture';
+    if (categoryLower.includes('infrastructure') || categoryLower.includes('civil')) return 'infrastructure';
+    if (categoryLower.includes('industrial') || categoryLower.includes('manufacturing')) return 'industrial';
+    if (categoryLower.includes('environmental') || categoryLower.includes('environment')) return 'environmental';
+    return 'other';
+  };
+
+  const mapSubcategoryToDiscipline = (subcategory: string): 'computer_science' | 'electrical_engineering' | 'mechanical_engineering' | 'civil_engineering' | 'interdisciplinary' => {
+    const subcategoryLower = subcategory.toLowerCase();
+    if (subcategoryLower.includes('computer') || subcategoryLower.includes('software') || subcategoryLower.includes('cs')) return 'computer_science';
+    if (subcategoryLower.includes('electrical') || subcategoryLower.includes('ee')) return 'electrical_engineering';
+    if (subcategoryLower.includes('mechanical') || subcategoryLower.includes('me')) return 'mechanical_engineering';
+    if (subcategoryLower.includes('civil') || subcategoryLower.includes('ce')) return 'civil_engineering';
+    return 'interdisciplinary';
   };
 
   // Navigation functions using store actions
@@ -143,23 +231,134 @@ export default function CreateProjectPage() {
   };
 
   const renderCurrentStep = () => {
+    const store = useProjectCreationStore.getState();
+    
     switch (currentStep) {
       case 1:
-        // Will need to update IdeationStep to use store directly
-        return <div>Ideation Step - TODO: Update to use store</div>;
+        return (
+          <IdeationStep 
+            formData={{
+              title: projectData.title,
+              description: projectData.description,
+              problemStatement: projectData.problemStatement
+            }}
+            onFormDataChange={(updates) => {
+              store.updateProjectData(updates);
+            }}
+          />
+        );
       case 2:
         return <AIAnalysisStep onNext={handleNextStep} onPrevious={handlePrevStep} />;
       case 3:
-        // Will need to update TeamSetupStep to use store directly  
-        return <div>Team Setup Step - TODO: Update to use store</div>;
+        return (
+          <TeamSetupStep 
+            formData={{
+              title: projectData.title,
+              description: projectData.description,
+              isTeamProject: projectData.isTeamProject,
+              maxTeamSize: projectData.maxTeamSize,
+              requiredSkills: projectData.requiredSkills,
+              teamMembers: projectData.teamMembers?.map(member => ({
+                id: member.userId,
+                name: member.username,
+                email: '', // This might need to be fetched
+                role: member.role,
+                type: 'student' as const,
+                skills: [],
+                availability: '',
+                isConfirmed: true,
+              })),
+              workingAlone: projectData.workingAlone,
+              mentorRequested: projectData.mentorRequested,
+            }}
+            onFormDataChange={(updates) => {
+              // Convert back to store format
+              const storeUpdates: any = { ...updates };
+              if (updates.teamMembers) {
+                storeUpdates.teamMembers = updates.teamMembers.map((member: any) => ({
+                  userId: member.id,
+                  username: member.name,
+                  role: member.role,
+                }));
+              }
+              store.updateProjectData(storeUpdates);
+            }}
+            onGetTeamSuggestions={handleGetTeamSuggestions}
+            isLoadingSuggestions={isSuggesting}
+          />
+        );
       case 4:
-        // Will need to update PlanningStep to use store directly
-        return <div>Planning Step - TODO: Update to use store</div>;
+        return (
+          <PlanningStep 
+            formData={{
+              title: projectData.title,
+              startDate: projectData.startDate,
+              targetCompletionDate: projectData.targetCompletionDate,
+              estimatedBudget: projectData.estimatedBudget,
+              constraints: projectData.constraints,
+              milestones: projectData.milestones,
+              riskAssessment: projectData.riskAssessment,
+              successMetrics: projectData.successMetrics,
+            }}
+            onFormDataChange={(updates) => {
+              store.updateProjectData(updates);
+            }}
+          />
+        );
       case 5:
-        // Will need to update LaunchStep to use store directly
-        return <div>Launch Step - TODO: Update to use store</div>;
+        return (
+          <LaunchStep 
+            formData={{
+              title: projectData.title,
+              description: projectData.description,
+              problemStatement: projectData.problemStatement,
+              type: projectData.type,
+              discipline: projectData.discipline,
+              industry: projectData.industry || projectData.category,
+              tags: projectData.tags.length > 0 ? projectData.tags : projectData.skills,
+              isTeamProject: projectData.isTeamProject,
+              maxTeamSize: projectData.maxTeamSize,
+              requiredSkills: projectData.requiredSkills,
+              teamMembers: projectData.teamMembers,
+              startDate: projectData.startDate,
+              targetCompletionDate: projectData.targetCompletionDate,
+              estimatedBudget: projectData.estimatedBudget,
+              constraints: projectData.constraints,
+              milestones: projectData.milestones,
+              successMetrics: projectData.successMetrics,
+              riskAssessment: projectData.riskAssessment,
+              aiAnalysis: projectData.aiAnalysis,
+              repositoryUrl: projectData.repositoryUrl,
+              documentationUrl: projectData.documentationUrl,
+              isPublic: projectData.isPublic,
+            }}
+            onFormDataChange={(updates) => {
+              // Type-safe conversion ensuring enum values are preserved
+              const storeUpdates: any = {};
+              Object.keys(updates).forEach(key => {
+                if (updates[key as keyof typeof updates] !== undefined) {
+                  storeUpdates[key] = updates[key as keyof typeof updates];
+                }
+              });
+              store.updateProjectData(storeUpdates);
+            }}
+            onCreateProject={handleCreateProject}
+            isCreating={isCreating}
+          />
+        );
       default:
-        return <div>Ideation Step - TODO: Update to use store</div>;
+        return (
+          <IdeationStep 
+            formData={{
+              title: projectData.title,
+              description: projectData.description,
+              problemStatement: projectData.problemStatement
+            }}
+            onFormDataChange={(updates) => {
+              store.updateProjectData(updates);
+            }}
+          />
+        );
     }
   };  return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 py-8">
