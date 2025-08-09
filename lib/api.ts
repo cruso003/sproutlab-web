@@ -11,7 +11,9 @@ import {
   PaginatedResponse,
   AIClassificationRequest,
   AIClassificationResponse,
-  ProjectCategory
+  ProjectCategory,
+  CollaborationAnalysis,
+  JoinRequest
 } from './types';
 
 // API Configuration
@@ -27,7 +29,7 @@ class APIClient {
     // Initialize axios instance
     this.axiosInstance = axios.create({
       baseURL,
-      timeout: 10000,
+      timeout: 60000, // 60 seconds for AI operations
       headers: {
         'Content-Type': 'application/json',
       },
@@ -53,11 +55,16 @@ class APIClient {
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          // Clear auth and redirect to login on 401
+        if (error.response?.status === 401 && this.token) {
+          // Token expired - comprehensive cleanup
           this.clearToken();
+          
           if (typeof window !== 'undefined') {
-            window.location.href = '/auth/login';
+            // Clear any React Query cache
+            if (window.location.pathname !== '/auth/login') {
+              // Force a hard reload to clear all state
+              window.location.replace('/auth/login');
+            }
           }
         }
 
@@ -80,6 +87,10 @@ class APIClient {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
+      // Clear all localStorage items that might contain auth data
+      localStorage.removeItem('sproutlab-auth-store');
+      // Clear any session storage as well
+      sessionStorage.clear();
     }
   }
 
@@ -245,35 +256,8 @@ class APIClient {
   }
 
   async refreshToken(): Promise<boolean> {
-    if (this.refreshPromise) {
-      try {
-        await this.refreshPromise;
-        return true;
-      } catch {
-        return false;
-      }
-    }
-
-    this.refreshPromise = this.performTokenRefresh();
-    
-    try {
-      const token = await this.refreshPromise;
-      this.setToken(token);
-      return true;
-    } catch {
-      this.clearToken();
-      return false;
-    } finally {
-      this.refreshPromise = null;
-    }
-  }
-
-  private async performTokenRefresh(): Promise<string> {
-    const response = await this.axiosInstance.post<{ token: string }>('/auth/refresh');
-    if (!response.data?.token) {
-      throw new Error('No token received');
-    }
-    return response.data.token;
+    // No refresh endpoint available - just check if token is still valid
+    return this.isAuthenticated();
   }
 
   // Check if user is authenticated
@@ -381,6 +365,13 @@ export const api = {
     },
   },
 
+  // Analytics
+  analytics: {
+    dashboard: () => apiClient.get('/analytics/dashboard'),
+    userActivity: () => apiClient.get('/analytics/user-activity'),
+    admin: () => apiClient.get('/analytics/admin'),
+  },
+
   // AI Services
   ai: {
     classifyProject: (data: AIClassificationRequest) => 
@@ -389,8 +380,25 @@ export const api = {
       apiClient.get<{ categories: ProjectCategory[] }>('/ai/categories'),
     analyzeInnovation: (data: { title: string; description: string; problemStatement: string; type?: string; discipline?: string; industry?: string; tags?: string[] }) =>
       apiClient.post<any>('/ai/innovation/analyze', data),
+    analyzeAdvanced: (data: { problemDescription: string; context?: string; includeKit?: boolean; skipCollaborationCheck?: boolean }) =>
+      apiClient.post<any>('/ai/innovation/analyze-advanced', {
+        roughIdea: data.problemDescription,
+        problemScope: 'building', // Default scope
+        experienceLevel: 'intermediate', // Default level
+        timeframe: 'semester',
+        teamPreference: 'small_team',
+        skipCollaborationCheck: data.skipCollaborationCheck || false
+      }),
     suggestTeam: (data: { title: string; description: string; requiredSkills: string[]; maxTeamSize: number; type: string }) =>
       apiClient.post<any>('/ai/team/suggest', data),
+  },
+
+  // Collaboration & Team Formation
+  collaboration: {
+    findOpportunities: (data: { idea: string; includeCompleted?: boolean }) =>
+      apiClient.post<CollaborationAnalysis>('/collaboration/find-opportunities', data),
+    requestToJoin: (data: JoinRequest) =>
+      apiClient.post<any>('/collaboration/request-to-join', data),
   },
 
   // File uploads

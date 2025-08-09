@@ -44,6 +44,8 @@ export interface InnovationProject {
   maxTeamSize?: number;
   currentTeamSize?: number;
   spotsAvailable?: number;
+  isCurrentUserMember?: boolean; // Whether the current user is already a member
+  hasPendingRequest?: boolean; // Whether the current user has a pending join request
   
   // Resources
   kitsUsed?: any[];
@@ -64,6 +66,45 @@ export interface InnovationProject {
   mentorId?: string;
   industryPartner?: string;
   commercialPotential?: string;
+  
+  // AI Analysis Data - From innovation start process
+  aiAnalysis?: {
+    opportunity?: {
+      title: string;
+      description: string;
+      marketSize: string;
+      impact: string;
+      uniqueValue: string;
+      africanContext: string;
+    };
+    technical?: {
+      complexity: number;
+      requiredSkills: string[];
+      estimatedTime: string;
+      keyTechnologies: string[];
+      kitComponents: string[];
+      machinesNeeded: string[];
+    };
+    commercial?: {
+      revenue: string;
+      customers: string[];
+      competition: string;
+      moat: string;
+      localAffordability: string;
+      offlineCapability: string;
+    };
+    execution?: {
+      phases: Array<{
+        name: string;
+        duration: string;
+        milestones: string[];
+        resources: string[];
+      }>;
+      resourceOptimization: string;
+      africaSpecificSolutions: string[];
+    };
+  };
+  originalIdea?: string;
   
   // Metrics
   viewCount?: number;
@@ -391,4 +432,37 @@ export interface AIClassificationResponse {
   skills: string[];
   resources: string[];
   reasoning: string;
+}
+
+// Collaboration and Team Formation Types
+export interface CollaborationProject {
+  projectId: string;
+  projectTitle: string;
+  similarityScore: number;
+  similarityReasons: string[];
+  collaborationPotential: 'high' | 'medium' | 'low';
+  teamLeaderName: string;
+  teamLeaderDiscipline: string;
+}
+
+export interface CollaborationSuggestion {
+  type: 'join_existing' | 'start_new' | 'parallel_development';
+  recommendation: string;
+  reasoning: string;
+  benefitsForBoth: string;
+  nextSteps: string[];
+}
+
+export interface CollaborationAnalysis {
+  similarProjects: CollaborationProject[];
+  collaborationSuggestions: CollaborationSuggestion[];
+  newProjectRecommendation: string;
+  confidence: number;
+}
+
+export interface JoinRequest {
+  projectId: string;
+  message: string;
+  proposedRole?: string;
+  relevantSkills?: string[];
 }

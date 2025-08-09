@@ -105,10 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth state on mount
   useEffect(() => {
+    let isMounted = true;
+
     const initAuth = async () => {
       try {
         const storedUser = api.auth.getCurrentUser();
         const isAuthenticated = api.auth.isAuthenticated();
+
+        if (!isMounted) return;
 
         if (isAuthenticated && storedUser) {
           // Just use stored auth data without refresh since backend doesn't support it
@@ -123,12 +127,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'AUTH_LOGOUT' });
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
-        dispatch({ type: 'AUTH_LOGOUT' });
+        if (isMounted) {
+          console.error('Auth initialization error:', error);
+          dispatch({ type: 'AUTH_LOGOUT' });
+        }
       }
     };
 
     initAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Auth methods
@@ -200,7 +210,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Ensure complete state cleanup
       dispatch({ type: 'AUTH_LOGOUT' });
+      // Force clear any persisted state
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('sproutlab-auth-store');
+        sessionStorage.clear();
+      }
     }
   };
 
@@ -228,16 +246,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshAuth = async (): Promise<boolean> => {
-    try {
-      const success = await api.auth.refresh();
-      if (!success) {
-        dispatch({ type: 'AUTH_LOGOUT' });
-      }
-      return success;
-    } catch (error) {
+    // Since we don't have a refresh endpoint, just check if current auth is valid
+    const isValid = api.auth.isAuthenticated();
+    if (!isValid) {
       dispatch({ type: 'AUTH_LOGOUT' });
-      return false;
     }
+    return isValid;
   };
 
   const contextValue: AuthContextType = {

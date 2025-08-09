@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { api } from './api';
-import { useAuthStore } from './stores';
 import { InnovationProject, Equipment, User, KnowledgeArticle, TrainingModule, AIClassification, AIClassificationRequest, ProjectCategory } from './types';
 
 // Query Keys Factory
@@ -30,41 +29,6 @@ export const queryKeys = {
   aiClassification: (data: { title: string; description: string; problemStatement: string }) => 
     ['ai', 'classification', data] as const,
   aiCategories: () => ['ai', 'categories'] as const,
-};
-
-// Authentication Hooks
-export const useAuth = () => {
-  const { user, token, isAuthenticated, setAuth, clearAuth, setLoading } = useAuthStore();
-  
-  const loginMutation = useMutation({
-    mutationFn: ({ username, password }: { username: string; password: string }) =>
-      api.auth.login(username, password),
-    onMutate: () => setLoading(true),
-    onSuccess: (response) => {
-      console.log('Login successful:', response);
-      if (response.success && response.data) {
-        setAuth(response.data.user, response.data.token);
-      }
-      setLoading(false);
-    },
-    onError: () => setLoading(false),
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: api.auth.logout,
-    onSuccess: () => clearAuth(),
-  });
-
-  return {
-    user,
-    token,
-    isAuthenticated,
-    isLoading: useAuthStore(state => state.isLoading),
-    login: loginMutation.mutate,
-    logout: logoutMutation.mutate,
-    isLoginLoading: loginMutation.isPending,
-    loginError: loginMutation.error,
-  };
 };
 
 // Projects Hooks
@@ -126,7 +90,18 @@ export const useProjectStats = () => {
     queryFn: () => api.projects.getStats(),
     select: (data) => data.success ? data.data : null,
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
-    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    refetchInterval: (query) => {
+      // Only refetch if we have valid data and no errors
+      return query.state.error ? false : 5 * 60 * 1000;
+    },
+    retry: (failureCount, error: any) => {
+      // Don't retry on authentication errors
+      if (error?.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    enabled: api.auth.isAuthenticated(), // Only run when authenticated
   });
 };
 
@@ -198,14 +173,13 @@ export const useProfile = () => {
 
 export const useUpdateProfile = () => {
   const queryClient = useQueryClient();
-  const updateUser = useAuthStore(state => state.updateUser);
   
   return useMutation({
     mutationFn: (data: Partial<User>) => api.users.updateProfile(data),
     onSuccess: (response) => {
       if (response.success && response.data) {
-        updateUser(response.data);
-        queryClient.setQueryData(queryKeys.profile(), response);
+        // Invalidate profile query to refetch updated data
+        queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
       }
     },
   });
@@ -277,35 +251,69 @@ export const useDashboardStats = () => {
   return useQuery({
     queryKey: ['analytics', 'dashboard'],
     queryFn: async () => {
-      // Fetch multiple endpoints concurrently for dashboard stats
-      const [projectsRes, equipmentRes, usersRes] = await Promise.all([
-        api.projects.list({ limit: 1000 }), // Get all projects
-        api.equipment.list(),
-        api.users.list()
-      ]);
-
-      // Calculate stats from the responses
-      const activeProjects = projectsRes.data?.data?.filter((p: any) => p.status === 'active' || p.status === 'in_progress') || [];
-      const availableEquipment = equipmentRes.data?.data?.filter((e: any) => e.status === 'available') || [];
-      const totalUsers = usersRes.data?.data?.length || 0;
-      const teamMembers = usersRes.data?.data?.filter((u: any) => u.role === 'student' || u.role === 'staff') || [];
-
-      return {
-        activeProjects: activeProjects.length,
-        equipmentReserved: Math.floor(Math.random() * 5) + 1, // Placeholder until we have booking stats
-        totalUsers,
-        teamMembers: teamMembers.length,
-        // Additional calculated metrics
-        projectsThisMonth: activeProjects.filter((p: any) => {
-          const createdAt = new Date(p.createdAt);
-          const now = new Date();
-          return createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
-        }).length,
-        equipmentUtilization: availableEquipment.length > 0 ? Math.round((1 - availableEquipment.length / (equipmentRes.data?.data?.length || 1)) * 100) : 0
-      };
+      // Use the new dedicated analytics endpoint
+      const response = await api.analytics.dashboard();
+      return response.data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds for real-time feel
+    refetchInterval: (query) => {
+      // Only refetch if we have valid data and no errors
+      return query.state.error ? false : 30000;
+    },
     staleTime: 20000, // Consider data stale after 20 seconds
+    retry: (failureCount, error: any) => {
+      // Don't retry on authentication errors
+      if (error?.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    enabled: api.auth.isAuthenticated(), // Only run when authenticated
+  });
+};
+
+export const useUserActivity = () => {
+  return useQuery({
+    queryKey: ['analytics', 'user-activity'],
+    queryFn: async () => {
+      const response = await api.analytics.userActivity();
+      return response.data;
+    },
+    refetchInterval: (query) => {
+      // Only refetch if we have valid data and no errors
+      return query.state.error ? false : 60000;
+    },
+    staleTime: 30000,
+    retry: (failureCount, error: any) => {
+      // Don't retry on authentication errors
+      if (error?.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    enabled: api.auth.isAuthenticated(), // Only run when authenticated
+  });
+};
+
+// Admin analytics hooks (restricted by role)
+export const useAdminAnalytics = () => {
+  return useQuery({
+    queryKey: ['analytics', 'admin'],
+    queryFn: async () => {
+      const response = await api.analytics.admin();
+      return response.data;
+    },
+    refetchInterval: (query) => {
+      return query.state.error ? false : 120000; // Refresh every 2 minutes
+    },
+    staleTime: 60000,
+    retry: (failureCount, error: any) => {
+      // Don't retry on permission errors
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    enabled: api.auth.isAuthenticated(),
   });
 };
 

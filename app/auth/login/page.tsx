@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CircuitBoard, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/lib/hooks';
+import { useAuth } from '@/lib/auth-context';
 import { useUIStore } from '@/lib/stores';
 import { useRouter } from 'next/navigation';
 
@@ -20,41 +20,86 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
-  const { login, isLoginLoading, loginError, user, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isLoading, error } = useAuth();
   const addNotification = useUIStore(state => state.addNotification);
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Clear any existing auth state when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Clear any stale auth data
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('sproutlab-auth-store');
+      sessionStorage.clear();
+    }
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
-    // Call the login mutation and handle the result
-    login({ username: formData.username, password: formData.password });
+    try {
+      const success = await login(formData.username, formData.password);
+      if (success) {
+        addNotification({
+          type: 'success',
+          title: 'Login Successful',
+          message: 'Welcome to SproutLab!'
+        });
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      // Error is handled by the auth context
+    }
   };
 
-  // Handle mutation states with useEffect
-  React.useEffect(() => {
-    if (loginError) {
-      const errorMessage = (loginError as any)?.response?.data?.message || (loginError as any)?.message || 'Login failed. Please check your credentials.';
-      setErrors({ general: errorMessage });
+  // Handle auth errors
+  useEffect(() => {
+    if (error) {
+      setErrors({ general: error });
       addNotification({
         type: 'error',
         title: 'Login Failed',
-        message: errorMessage
+        message: error
       });
     }
-  }, [loginError, addNotification]);
+  }, [error, addNotification]);
 
-  React.useEffect(() => {
-    if (isAuthenticated && user) {
+  useEffect(() => {
+    if (isAuthenticated) {
       addNotification({
         type: 'success',
         title: 'Welcome back!',
-        message: `Successfully logged in as ${user.firstName}`
+        message: 'Successfully logged in to SproutLab!'
       });
       router.push('/dashboard');
     }
-  }, [isAuthenticated, user, addNotification, router]);
+  }, [isAuthenticated, addNotification, router]);
+
+  // Show loading if checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+          <p className="text-gray-400">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If already authenticated, don't show login form
+  if (isAuthenticated) {
+    return null;
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -112,7 +157,7 @@ export default function LoginPage() {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* General Error */}
-                {(errors.general || loginError) && (
+                {(errors.general || error) && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -120,7 +165,7 @@ export default function LoginPage() {
                   >
                     <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     <span className="text-sm">
-                      {errors.general || loginError?.message || 'Login failed'}
+                      {errors.general || error || 'Login failed'}
                     </span>
                   </motion.div>
                 )}
@@ -184,10 +229,10 @@ export default function LoginPage() {
                 {/* Submit Button */}
                 <Button
                   type="submit"
-                  disabled={isLoginLoading}
+                  disabled={isLoading}
                   className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
                 >
-                  {isLoginLoading ? (
+                  {isLoading ? (
                     <div className="flex items-center space-x-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       <span>Signing In...</span>

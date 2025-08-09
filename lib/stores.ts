@@ -126,65 +126,6 @@ export const useUIStore = create<UIState>()(
   )
 );
 
-// Auth Store (separate from UI for security)
-interface AuthState {
-  user: any | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-}
-
-interface AuthActions {
-  setAuth: (user: any, token: string) => void;
-  clearAuth: () => void;
-  setLoading: (loading: boolean) => void;
-  updateUser: (user: Partial<any>) => void;
-}
-
-export const useAuthStore = create<AuthState & AuthActions>()(
-  devtools(
-    persist(
-      (set) => ({
-        // State
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-        
-        // Actions
-        setAuth: (user, token) => 
-          set({ 
-            user, 
-            token, 
-            isAuthenticated: true,
-            isLoading: false 
-          }),
-        clearAuth: () => 
-          set({ 
-            user: null, 
-            token: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          }),
-        setLoading: (isLoading) => set({ isLoading }),
-        updateUser: (userUpdate) => 
-          set((state) => ({
-            user: state.user ? { ...state.user, ...userUpdate } : null
-          })),
-      }),
-      {
-        name: 'sproutlab-auth-store',
-        partialize: (state) => ({
-          user: state.user,
-          token: state.token,
-          isAuthenticated: state.isAuthenticated,
-        }),
-      }
-    ),
-    { name: 'AuthStore' }
-  )
-);
-
 // Equipment Store (for complex equipment state)
 interface EquipmentState {
   selectedEquipment: any | null;
