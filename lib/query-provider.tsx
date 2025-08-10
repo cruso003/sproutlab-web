@@ -2,7 +2,15 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { useState, ReactNode } from 'react';
+import { persistQueryClient } from '@tanstack/query-persist-client-core';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { useState, useEffect, ReactNode } from 'react';
+
+// Create a persister for localStorage
+const persister = createSyncStoragePersister({
+  storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  key: 'sproutlab-react-query-cache',
+});
 
 // Create a client factory function to avoid sharing state between requests
 const createQueryClient = () => {
@@ -10,9 +18,9 @@ const createQueryClient = () => {
     defaultOptions: {
       queries: {
         // Stale time - how long data is considered fresh
-        staleTime: 60 * 1000, // 1 minute
+        staleTime: 30 * 60 * 1000, // 30 minutes
         // Cache time - how long inactive data stays in cache
-        gcTime: 5 * 60 * 1000, // 5 minutes (was cacheTime in v4)
+        gcTime: 24 * 60 * 60 * 1000, // 24 hours (was cacheTime in v4)
         // Retry configuration
         retry: (failureCount, error: any) => {
           // Don't retry on 401, 403, 404
@@ -28,6 +36,8 @@ const createQueryClient = () => {
         refetchOnWindowFocus: false,
         // Refetch on reconnect
         refetchOnReconnect: true,
+        // Don't refetch on mount if we have data
+        refetchOnMount: false,
       },
       mutations: {
         // Global error handling can be added here
@@ -49,13 +59,24 @@ export function QueryProvider({ children }: QueryProviderProps) {
   // Create query client instance once per provider
   const [queryClient] = useState(() => createQueryClient());
 
+  // Persist query client to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      persistQueryClient({
+        queryClient,
+        persister,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
+    }
+  }, [queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}
       {process.env.NODE_ENV === 'development' && (
         <ReactQueryDevtools 
           initialIsOpen={false}
-          position="bottom"
+          buttonPosition="bottom-right"
         />
       )}
     </QueryClientProvider>

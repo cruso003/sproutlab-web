@@ -365,6 +365,32 @@ export const api = {
     },
   },
 
+  // Learning
+  learning: {
+    generateContent: (data: { projectId: string; skills?: string[]; focus?: string; difficulty?: string }) =>
+      apiClient.post<{ 
+        // Legacy format
+        modules: any[]; 
+        videoResources: any[]; 
+        exercises: any[]; 
+        totalDuration: string; 
+        cached: boolean;
+        
+        // New enhanced format
+        tracks?: any[];
+        missions?: any[];
+        gamification?: any;
+        phaseProgress?: any;
+        projectMetadata?: any;
+        contentSummary?: any;
+      }>('/learning/generate-content', data),
+    generateExercises: (data: { projectId: string; focus?: string; difficulty?: string }) =>
+      apiClient.post<{ exercises: any[] }>('/learning/generate-exercises', data),
+    videoResources: (data: { projectId: string; topic: string; difficulty?: string }) =>
+      apiClient.post<{ videos: any[] }>('/learning/video-resources', data),
+    clearCache: (projectId: string) => apiClient.delete(`/learning/clear-cache/${projectId}`),
+  },
+
   // Analytics
   analytics: {
     dashboard: () => apiClient.get('/analytics/dashboard'),

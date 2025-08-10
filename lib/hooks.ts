@@ -25,6 +25,11 @@ export const queryKeys = {
   trainingModule: (id: string) => ['training', 'modules', id] as const,
   userTraining: (userId: string) => ['training', 'user', userId] as const,
   
+  learning: ['learning'] as const,
+  learningContent: (projectId: string, params?: any) => ['learning', 'content', projectId, params] as const,
+  learningExercises: (projectId: string, params?: any) => ['learning', 'exercises', projectId, params] as const,
+  learningVideos: (projectId: string, topic: string) => ['learning', 'videos', projectId, topic] as const,
+  
   ai: ['ai'] as const,
   aiClassification: (data: { title: string; description: string; problemStatement: string }) => 
     ['ai', 'classification', data] as const,
@@ -408,6 +413,65 @@ export const useAITeamSuggestions = () => {
     suggestions: suggestTeamMutation.data,
     isSuggesting: suggestTeamMutation.isPending,
     suggestionsError: suggestTeamMutation.error,
+  };
+};
+
+// Learning Hooks
+export function useLearningContent(projectId: string) {
+  return useQuery({
+    queryKey: ['learning-content', projectId],
+    queryFn: () => api.learning.generateContent({ projectId }),
+    enabled: !!projectId,
+    staleTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchOnWindowFocus: false,
+    refetchOnMount: true, // Always refetch on mount for fresh data
+    // Keep previous data while refetching
+    placeholderData: (previousData) => previousData,
+    // Network first, then cache
+    networkMode: 'online',
+    // Retry configuration for better reliability
+    retry: (failureCount, error: any) => {
+      // Don't retry on 4xx errors
+      if (error?.response?.status >= 400 && error?.response?.status < 500) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+  });
+}
+
+export const useLearningExercises = () => {
+  const generateExercisesMutation = useMutation({
+    mutationFn: (data: { projectId: string; focus?: string; difficulty?: string }) =>
+      api.learning.generateExercises(data),
+    retry: 1,
+    retryDelay: 1000,
+  });
+
+  return {
+    generateExercises: generateExercisesMutation.mutate,
+    generateExercisesAsync: generateExercisesMutation.mutateAsync,
+    exercises: generateExercisesMutation.data?.success ? generateExercisesMutation.data.data : null,
+    isGenerating: generateExercisesMutation.isPending,
+    exercisesError: generateExercisesMutation.error,
+  };
+};
+
+export const useLearningVideos = () => {
+  const fetchVideosMutation = useMutation({
+    mutationFn: (data: { projectId: string; topic: string; difficulty?: string }) =>
+      api.learning.videoResources(data),
+    retry: 1,
+    retryDelay: 1000,
+  });
+
+  return {
+    fetchVideos: fetchVideosMutation.mutate,
+    fetchVideosAsync: fetchVideosMutation.mutateAsync,
+    videos: fetchVideosMutation.data?.success ? fetchVideosMutation.data.data : null,
+    isFetching: fetchVideosMutation.isPending,
+    videosError: fetchVideosMutation.error,
   };
 };
 

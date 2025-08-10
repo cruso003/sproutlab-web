@@ -160,8 +160,6 @@ export default function Sidebar({ children }: SidebarProps) {
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  console.log("user", user);
-
   return (
     <div className="min-h-screen bg-slate-50 flex">
       {/* Mobile overlay */}
