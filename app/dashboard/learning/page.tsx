@@ -2,287 +2,324 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  ArrowLeft, 
   BookOpen, 
-  PlayCircle, 
-  Target, 
-  Rocket, 
-  Star, 
-  Trophy, 
-  CheckCircle, 
-  Lock, 
-  Brain, 
-  Wrench, 
-  FileText, 
-  Award, 
-  Shield, 
-  Map,
-  RotateCcw
+  ArrowLeft, 
+  Clock,
+  Users,
+  Target
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { useLearningContent } from '@/lib/hooks';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
-// Enhanced interfaces for the new learning system
-interface LearningTask {
-  id: string;
-  title: string;
-  type: 'study' | 'watch' | 'practice';
-  estimated: string;
-  xpReward: number;
-}
-
-interface LearningMission {
+// Project interface for project selection
+interface Project {
   id: string;
   title: string;
   description: string;
-  type: 'knowledge' | 'practice' | 'assessment';
-  xpReward: number;
-  tasks: LearningTask[];
+  status: string;
+  industry: string;
+  aiClassification: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface LearningModule {
-  id: string;
-  title: string;
-  duration: string;
-}
-
-interface LearningTrack {
-  id: string;
-  title: string;
-  description: string;
-  type: 'theoretical' | 'multimedia' | 'practical';
-  difficulty: string;
-  estimatedTime: string;
-  progress: {
-    completed: number;
-    total: number;
-  };
-  content: LearningModule[];
-}
-
-interface PhaseProgress {
-  phaseIndex: number;
-  totalPhases: number;
-  phaseCompletion: number;
-  milestones: {
-    phase: string;
-    title: string;
-    completed: boolean;
-    current: boolean;
-    locked: boolean;
-  }[];
-}
-
-interface Gamification {
-  totalXP: number;
-  currentLevel: number;
-  achievements: {
-    totalCompleted: number;
-    phasesCompleted: number;
-    projectsAdvanced: number;
-    skillsMastered: number;
-  };
-  badges: {
-    id: string;
-    title: string;
-    description: string;
-    icon: string;
-    unlocked: boolean;
-  }[];
-}
-
-interface ProjectMetadata {
-  problemStatement: string;
-  solutionApproach: string;
-  industryDomain: string;
-  systemArchitecture: string;
-  realWorldApplication: string;
-}
-
-interface VideoResource {
-  title: string;
-  description: string;
-  url: string;
-  duration: string;
-  instructor: string;
-  difficulty: string;
-}
-
-interface ProjectContext {
-  title: string;
-  phase: string;
-}
-
-export default function EnhancedLearningPage() {
+export default function LearningPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
   const projectId = searchParams.get('project') || searchParams.get('projectId');
-  
-  // Early return if no project ID
+
+  console.log("=== LEARNING PAGE DEBUG ===");
+  console.log("projectId from URL:", projectId);
+  console.log("searchParams:", Object.fromEntries(searchParams.entries()));
+
+  // Scenario 1: No project ID - Show project selection (sidebar access)
   if (!projectId) {
+    return <ProjectSelectionView />;
+  }
+
+  // Scenario 2: Has project ID - Load learning content (project detail access)
+  return <LearningContentView projectId={projectId} />;
+}
+
+// Component for when user accesses from sidebar (no project selected)
+function ProjectSelectionView() {
+  const router = useRouter();
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchMyProjects();
+  }, []);
+
+  const fetchMyProjects = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Use the same API call as the main projects page
+      const response = await api.projects.list({ my_projects: 'true' });
+      
+      console.log("=== PROJECT SELECTION DEBUG ===");
+      console.log("API response:", response);
+      
+      if (response.success && response.data) {
+        // Handle the actual response format: {success: true, data: Array, message: string}
+        const projectsArray = Array.isArray(response.data) ? response.data : response.data.data || [];
+        console.log("Projects array:", projectsArray);
+        setProjects(projectsArray);
+      } else {
+        setError('Failed to load projects');
+      }
+    } catch (err: any) {
+      console.error("Projects fetch error:", err);
+      setError(err.message || 'Failed to load projects');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">Learning Hub</h1>
+            <p className="text-gray-300">Select a project to access learning content</p>
+          </div>
+          
+          {/* Loading skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-48 bg-white/10 rounded-lg animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
           <Card className="bg-red-900/30 border-red-400/20">
             <CardContent className="p-6 text-center">
-              <h2 className="text-white font-semibold mb-2">Project Required</h2>
-              <p className="text-gray-300">Please select a project to view learning content.</p>
-              <Button 
-                onClick={() => router.push('/dashboard')}
-                className="mt-4 bg-blue-600 hover:bg-blue-700"
-              >
-                Go to Dashboard
-              </Button>
+              <h2 className="text-white font-semibold mb-2">Failed to Load Projects</h2>
+              <p className="text-gray-300 mb-2">Could not fetch your projects.</p>
+              <p className="text-red-300 text-sm mb-4">
+                Error: {error || 'Unknown error'}
+              </p>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={() => window.location.reload()}>
+                  Try Again
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => router.push('/dashboard/projects')}
+                >
+                  Go to Projects
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
     );
   }
-  
-  // Hooks
-  const { data, isLoading, error, isStale, refetch } = useLearningContent(projectId);
 
-  // State management
-  const [currentView, setCurrentView] = useState('overview');
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
-  const [earnedXP, setEarnedXP] = useState(0);
+  const userProjects = projects || [];
 
-  // Extract data from enhanced API response with proper key generation
-  const missions: LearningMission[] = data?.data?.missions || [];
-  const tracks: LearningTrack[] = data?.data?.tracks || [];
-  const phaseProgress: PhaseProgress | undefined = data?.data?.phaseProgress;
-  const gamification: Gamification | undefined = data?.data?.gamification;
-  const projectMetadata: ProjectMetadata | undefined = data?.data?.projectMetadata;
-  const videoResources: VideoResource[] = data?.data?.videoResources || [];
-
-  // Phase-aware content determination
-  const projectPhase = (data?.data as any)?.phase || 'ideation';
-  const projectTitle = (data?.data as any)?.projectTitle || 'Innovation Project';
-  
-  // Create project context from metadata and current phase
-  const projectContext: ProjectContext = projectMetadata ? {
-    title: `${projectMetadata.industryDomain} Innovation Project`,
-    phase: phaseProgress ? 
-      ['Ideation', 'Design', 'Prototype', 'Testing', 'Showcase'][phaseProgress.phaseIndex] || 'Ideation' :
-      'Ideation'
-  } : {
-    title: 'Learning Hub',
-    phase: phaseProgress ? 
-      ['Ideation', 'Design', 'Prototype', 'Testing', 'Showcase'][phaseProgress.phaseIndex] || 'Ideation' :
-      'Ideation'
-  };
-
-  // Check if we have any valid content
-  const hasValidContent = data?.data && (
-    (data.data.tracks && data.data.tracks.length > 0) ||
-    (data.data.missions && data.data.missions.length > 0) ||
-    ((data.data as any).modules && (data.data as any).modules.length > 0)
-  );
-
-  // Loading state with skeleton - show loading if we're fetching OR if we don't have ANY content
-  if (isLoading || (!hasValidContent && !error)) {
-
-  // Task completion handler
-  const completeTask = (missionId: string, taskId: string) => {
-    const taskKey = `${missionId}-${taskId}`;
-    if (!completedTasks.has(taskKey)) {
-      const newCompleted = new Set(completedTasks);
-      newCompleted.add(taskKey);
-      setCompletedTasks(newCompleted);
-      
-      // Find task and add XP
-      const mission = missions.find(m => m.id === missionId);
-      const task = mission?.tasks.find(t => t.id === taskId);
-      if (task) {
-        setEarnedXP(prev => prev + task.xpReward);
-        toast.success(`+${task.xpReward} XP earned!`);
-      }
-    }
-  };
-
-  // Cache clearing handler
-  const handleClearCache = async () => {
-    try {
-      // Clear backend cache
-      await api.learning.clearCache(projectId!);
-      
-      // Clear React Query cache for this project
-      await queryClient.invalidateQueries({ 
-        queryKey: ['learning-content', projectId] 
-      });
-      
-      // Remove from localStorage cache as well
-      queryClient.removeQueries({ 
-        queryKey: ['learning-content', projectId] 
-      });
-      
-      // Force a refetch
-      await refetch();
-      
-      toast.success('Learning cache cleared! Content refreshed.');
-    } catch (error) {
-      console.error('Cache clear error:', error);
-      toast.error('Failed to clear cache');
-    }
-  };
-
-  // Check if we have any valid content
-  const hasValidContent = data?.data && (
-    (data.data.tracks && data.data.tracks.length > 0) ||
-    (data.data.missions && data.data.missions.length > 0) ||
-    ((data.data as any).modules && (data.data as any).modules.length > 0)
-  );
-
-  // Loading state with skeleton - show loading if we're fetching OR if we don't have ANY content
-  if (isLoading || (!hasValidContent && !error)) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="max-w-7xl mx-auto p-6">
-          {/* Header Skeleton */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center space-x-4">
-              <div className="w-32 h-10 bg-white/10 rounded animate-pulse"></div>
-              <div>
-                <div className="w-48 h-8 bg-white/10 rounded mb-2 animate-pulse"></div>
-                <div className="w-64 h-5 bg-white/10 rounded animate-pulse"></div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-24 h-10 bg-white/10 rounded animate-pulse"></div>
-              <div className="w-32 h-10 bg-white/10 rounded animate-pulse"></div>
-              {isStale && (
-                <button
-                  onClick={() => refetch()}
-                  className="text-xs text-orange-400 hover:text-orange-300 px-2 py-1 rounded border border-orange-400/30"
-                >
-                  Refresh
-                </button>
-              )}
-            </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center space-x-4 mb-4">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/dashboard')}
+              className="text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
           </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Learning Hub</h1>
+          <p className="text-gray-300">Select a project to access personalized learning content</p>
+        </div>
 
-          {/* Content Skeleton */}
+        {/* Projects Grid */}
+        {userProjects.length === 0 ? (
+          <Card className="bg-white/5 border-white/10">
+            <CardContent className="p-8 text-center">
+              <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No Projects Found</h3>
+              <p className="text-gray-300 mb-4">
+                Create a project first to access learning content.
+              </p>
+              <Button onClick={() => router.push('/dashboard/projects/new')}>
+                Create Project
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {userProjects.map((project: any) => (
+              <Card 
+                key={project.id} 
+                className="bg-white/5 border-white/10 hover:bg-white/10 transition-all cursor-pointer"
+                onClick={() => router.push(`/dashboard/learning?project=${project.id}`)}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-white text-lg mb-2">
+                        {project.title}
+                      </CardTitle>
+                      <p className="text-gray-300 text-sm line-clamp-2 mb-3">
+                        {project.description}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary" className="bg-blue-600/20 text-blue-300">
+                      {project.status}
+                    </Badge>
+                    <Badge variant="outline" className="border-purple-400/30 text-purple-300">
+                      {project.industry}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-400">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-4 h-4" />
+                      <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Target className="w-4 h-4" />
+                      <span>Learn</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Component for when user has selected a project (learning content)
+function LearningContentView({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('overview');
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [userProgress, setUserProgress] = useState<any>(null);
+  const [totalXP, setTotalXP] = useState(0);
+
+  // Fetch learning content for the specific project
+  const { data, isLoading, error, refetch } = useLearningContent(projectId);
+
+  // Fetch user progress for this project
+  const fetchProgress = async () => {
+    try {
+      console.log('=== FETCHING PROGRESS ===');
+      console.log('ProjectId:', projectId);
+      
+      const progressResponse = await api.learning.getProgress(projectId);
+      console.log('Progress API response:', progressResponse);
+      
+      if (progressResponse.success && progressResponse.data) {
+        const progress = progressResponse.data;
+        console.log('Progress data:', progress);
+        setUserProgress(progress);
+        setTotalXP(progress.totalXP || 0);
+        
+        // Update completed tasks set
+        const completedIds = progress.progress
+          ?.filter((p: any) => p.completed)
+          ?.map((p: any) => p.itemId) || [];
+        console.log('Completed task IDs from API:', completedIds);
+        console.log('Full progress data:', progress.progress);
+        setCompletedTasks(new Set(completedIds));
+        
+        console.log('Progress loaded successfully:', {
+          totalXP: progress.totalXP,
+          totalCompleted: progress.totalCompleted,
+          completedIds
+        });
+      } else {
+        console.log('Progress API returned unsuccessful response:', progressResponse);
+      }
+    } catch (err) {
+      console.error('Failed to fetch progress:', err);
+    }
+  };
+
+  // Fetch progress on mount and when window regains focus
+  useEffect(() => {
+    if (projectId) {
+      fetchProgress();
+    }
+
+    // Refresh data when window regains focus (e.g., coming back from module)
+    const handleFocus = () => {
+      console.log('Window focused, refreshing progress...');
+      fetchProgress();
+      refetch(); // Also refresh learning content
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [projectId]);
+
+  console.log("=== LEARNING CONTENT DEBUG ===");
+  console.log("projectId:", projectId);
+  console.log("loading:", isLoading);
+  console.log("error:", error);
+  console.log("data:", data);
+  console.log("data?.data:", data?.data);
+  console.log("data structure keys:", data?.data ? Object.keys(data.data) : 'no data');
+  console.log("completedTasks:", Array.from(completedTasks));
+  console.log("totalXP:", totalXP);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/dashboard/learning')}
+              className="text-white hover:bg-white/10 mb-4"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Learning Hub
+            </Button>
+            <h1 className="text-3xl font-bold text-white mb-2">Loading Learning Content...</h1>
+          </div>
+          
+          {/* Loading skeleton */}
           <div className="space-y-6">
-            <div className="w-full h-12 bg-white/10 rounded animate-pulse"></div>
+            <div className="h-20 bg-white/10 rounded-lg animate-pulse"></div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-48 bg-white/10 rounded animate-pulse"></div>
+                  <div key={i} className="h-48 bg-white/10 rounded-lg animate-pulse"></div>
                 ))}
               </div>
               <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-32 bg-white/10 rounded animate-pulse"></div>
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-32 bg-white/10 rounded-lg animate-pulse"></div>
                 ))}
               </div>
             </div>
@@ -292,18 +329,22 @@ export default function EnhancedLearningPage() {
     );
   }
 
-  // Check if we have a valid projectId
-  if (!projectId) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
           <Card className="bg-red-900/30 border-red-400/20">
             <CardContent className="p-6 text-center">
-              <h2 className="text-white font-semibold mb-2">No Project Selected</h2>
-              <p className="text-gray-300">Please select a project to view learning content.</p>
-              <Button onClick={() => router.push('/dashboard')} className="mt-4">
-                Return to Dashboard
-              </Button>
+              <h2 className="text-white font-semibold mb-2">Failed to Load Learning Content</h2>
+              <p className="text-gray-300 mb-4">Could not load learning content for this project.</p>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={() => refetch()} variant="outline">
+                  Try Again
+                </Button>
+                <Button onClick={() => router.push('/dashboard/learning')}>
+                  Back to Projects
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -311,68 +352,17 @@ export default function EnhancedLearningPage() {
     );
   }
 
-  // Check if learning data failed to load or is empty
-  if (!hasValidContent && !isLoading && !error) {
+  if (!data?.data) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
           <Card className="bg-yellow-900/30 border-yellow-400/20">
             <CardContent className="p-6 text-center">
-              <h2 className="text-white font-semibold mb-2">Generating Learning Content</h2>
-              <p className="text-gray-300 mb-4">
-                Your learning content is being generated with enhanced features.
-                This will provide you with structured learning paths, progress tracking, and phase-aware content.
-              </p>
-              <div className="flex justify-center space-x-3">
-                <Button 
-                  onClick={() => refetch()}
-                  className="bg-yellow-600 hover:bg-yellow-700"
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Refresh Content
-                </Button>
-                <Button 
-                  onClick={() => router.push('/dashboard')}
-                  variant="outline"
-                  className="border-yellow-400/30 text-yellow-300 hover:bg-yellow-900/20"
-                >
-                  Go to Dashboard
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Check if learning data failed to load or is empty
-  if (!hasValidContent && !isLoading && !error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-        <div className="max-w-7xl mx-auto">
-          <Card className="bg-orange-900/30 border-orange-400/20">
-            <CardContent className="p-6 text-center">
               <h2 className="text-white font-semibold mb-2">No Learning Content Available</h2>
-              <p className="text-gray-300 mb-4">
-                Learning content is being generated for this project. This usually takes a few moments.
-              </p>
-              <div className="flex justify-center space-x-3">
-                <Button 
-                  onClick={() => refetch()}
-                  className="bg-orange-600 hover:bg-orange-700"
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Try Again
-                </Button>
-                <Button 
-                  onClick={() => router.push('/dashboard')}
-                  variant="outline"
-                  className="border-orange-400/30 text-orange-300 hover:bg-orange-900/20"
-                >
-                  Go to Dashboard
-                </Button>
-              </div>
+              <p className="text-gray-300 mb-4">Learning content is being generated for this project.</p>
+              <Button onClick={() => refetch()}>
+                Refresh Content
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -380,443 +370,327 @@ export default function EnhancedLearningPage() {
     );
   }
 
-  // Check if learning data failed to load with error
-  if (!data?.data && !isLoading && error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-        <div className="max-w-7xl mx-auto">
-          <Card className="bg-red-900/30 border-red-400/20">
-            <CardContent className="p-6 text-center">
-              <h2 className="text-white font-semibold mb-2">Learning Content Unavailable</h2>
-              <p className="text-gray-300">Could not load learning content for this project.</p>
-              <div className="flex gap-2 mt-4 justify-center">
-                <Button onClick={() => window.location.reload()} variant="outline">
-                  Try Again
-                </Button>
-                <Button onClick={() => router.push(`/dashboard/projects/${projectId}`)}>
-                  Back to Project
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  const learningData = data.data;
+  const tracks = learningData.tracks || [];
+  const missions = learningData.missions || [];
+  const gamification = learningData.gamification;
+  const phaseProgress = learningData.phaseProgress;
+  const projectMetadata = learningData.projectMetadata;
+
+  const handleTaskComplete = async (taskId: string, xpReward: number, taskType: 'module' | 'exercise' | 'video') => {
+    if (!completedTasks.has(taskId)) {
+      try {
+        // Save progress to backend
+        await api.learning.saveProgress({
+          projectId,
+          itemId: taskId,
+          itemType: taskType,
+          completed: true,
+          xpEarned: xpReward
+        });
+
+        // Update local state
+        setCompletedTasks(prev => new Set([...prev, taskId]));
+        setTotalXP(prev => prev + xpReward);
+        
+        console.log(`Task ${taskId} completed! +${xpReward} XP`);
+        
+        // Refresh progress data to get latest state
+        fetchProgress();
+        
+        // You could add a toast notification here
+        // addNotification({ type: 'success', title: 'Task Complete!', message: `+${xpReward} XP earned` });
+      } catch (error) {
+        console.error('Failed to save progress:', error);
+      }
+    }
+  };
+
+  const openTaskContent = (task: any) => {
+    // Open a modal or navigate to content viewer
+    if (task.type === 'study') {
+      // Open module content with projectId
+      window.open(`/dashboard/learning/module/${task.content.id}?projectId=${projectId}`, '_blank');
+    } else if (task.type === 'hands-on') {
+      // Open exercise content with projectId
+      window.open(`/dashboard/learning/exercise/${task.content.id}?projectId=${projectId}`, '_blank');
+    } else if (task.type === 'watch') {
+      // Open video content in video viewer with projectId
+      if (task.content.id) {
+        window.open(`/dashboard/learning/video/${task.content.id}?projectId=${projectId}`, '_blank');
+      } else if (task.content.url) {
+        // Fallback: open URL directly if no video ID
+        window.open(task.content.url, '_blank');
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              onClick={() => router.push(`/dashboard/projects/${projectId}`)}
-              className="text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Project
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Learning Hub</h1>
-              <p className="text-gray-300">{projectContext.title} • {projectContext.phase} Phase</p>
-            </div>
-          </div>
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => router.push('/dashboard/learning')}
+            className="text-white hover:bg-white/10 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Learning Hub
+          </Button>
           
-          <div className="flex items-center space-x-3">
-            {gamification && (
-              <Card className="bg-white/5 border-white/10">
-                <CardContent className="p-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-1">
-                      <Star className="w-4 h-4 text-yellow-400" />
-                      <span className="text-white font-medium">{gamification.totalXP + earnedXP}</span>
-                      <span className="text-gray-400 text-sm">XP</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                {projectMetadata?.projectTitle || 'Learning Content'}
+              </h1>
+              <p className="text-gray-300">
+                {phaseProgress?.currentPhase || 'ideation'} Phase • {learningData.totalDuration}
+              </p>
+            </div>
+            
+            {/* Always show XP and progress with refresh button */}
+            <Card className="bg-white/5 border-white/10">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="text-center">
+                      <p className="text-yellow-400 font-bold text-lg">{totalXP}</p>
+                      <p className="text-gray-400 text-sm">Total XP</p>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <Trophy className="w-4 h-4 text-orange-400" />
-                      <span className="text-white font-medium">Level {gamification.currentLevel}</span>
+                    <div className="text-center">
+                      <p className="text-blue-400 font-bold text-lg">{userProgress?.totalCompleted || 0}</p>
+                      <p className="text-gray-400 text-sm">Completed</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-green-400 font-bold text-lg">{Math.floor(totalXP / 100)}</p>
+                      <p className="text-gray-400 text-sm">Level</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-            <Button onClick={handleClearCache} variant="outline" size="sm">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Refresh Content
-            </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={fetchProgress}
+                    className="text-xs text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-white"
+                  >
+                    🔄 Refresh
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <Tabs value={currentView} onValueChange={(value: any) => setCurrentView(value)} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white/5 border border-white/10">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-green-500/20">
-              <Map className="w-4 h-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="missions" className="data-[state=active]:bg-blue-500/20">
-              <Target className="w-4 h-4 mr-2" />
-              Missions
-            </TabsTrigger>
-            <TabsTrigger value="tracks" className="data-[state=active]:bg-purple-500/20">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Learning Tracks
-            </TabsTrigger>
-            <TabsTrigger value="progress" className="data-[state=active]:bg-orange-500/20">
-              <Trophy className="w-4 h-4 mr-2" />
-              Progress
-            </TabsTrigger>
-          </TabsList>
+        <div className="mb-6">
+          <div className="flex space-x-1 bg-white/5 p-1 rounded-lg">
+            {[
+              { id: 'overview', label: 'Overview', icon: Target },
+              { id: 'missions', label: 'Missions', icon: BookOpen },
+              { id: 'tracks', label: 'Learning Tracks', icon: Clock },
+              { id: 'progress', label: 'Progress', icon: Users }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Phase Progress */}
-              {phaseProgress ? (
-                <Card className="lg:col-span-2 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border-blue-400/20">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <Rocket className="w-5 h-5 mr-2" />
-                      Project Journey - {projectPhase} Phase
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Phase Progress</span>
-                        <span className="text-white font-medium">
-                          {phaseProgress.phaseIndex + 1} of {phaseProgress.totalPhases}
-                        </span>
-                      </div>
-                      <Progress 
-                        value={phaseProgress.phaseCompletion} 
-                        className="h-2"
-                      />
-                      <div className="grid grid-cols-5 gap-2">
-                        {phaseProgress.milestones.map((milestone, index) => (
-                          <div key={milestone.phase} className="text-center">
-                            <div className={`w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center ${
-                              milestone.completed ? 'bg-green-500' : 
-                              milestone.current ? 'bg-blue-500' : 
-                              'bg-gray-600'
-                            }`}>
-                              {milestone.completed ? (
-                                <CheckCircle className="w-4 h-4 text-white" />
-                              ) : milestone.locked ? (
-                                <Lock className="w-4 h-4 text-gray-400" />
-                              ) : (
-                                <span className="text-white text-xs font-bold">{index + 1}</span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-300">{milestone.title}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="lg:col-span-2 bg-gradient-to-r from-orange-900/40 to-red-900/40 border-orange-400/20">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <Rocket className="w-5 h-5 mr-2" />
-                      Phase Progress Unavailable
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-300">
-                      Phase progress tracking is not available for the {projectPhase} phase. 
-                      This feature may be enabled in later phases of your project.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+        {/* Content Area */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                {/* Quick Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card className="bg-white/5 border-white/10">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-blue-400">{missions.length}</p>
+                      <p className="text-gray-300 text-sm">Missions</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white/5 border-white/10">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-green-400">{tracks.length}</p>
+                      <p className="text-gray-300 text-sm">Learning Tracks</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white/5 border-white/10">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-purple-400">{learningData.contentSummary?.totalModules || 0}</p>
+                      <p className="text-gray-300 text-sm">Modules</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white/5 border-white/10">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-orange-400">{gamification?.availableXP || 0}</p>
+                      <p className="text-gray-300 text-sm">Available XP</p>
+                    </CardContent>
+                  </Card>
+                </div>
 
-              {/* Quick Stats */}
-              <div className="space-y-4">
-                <Card className="bg-green-900/30 border-green-400/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
+                {/* Project Context */}
+                {projectMetadata && (
+                  <Card className="bg-white/5 border-white/10">
+                    <CardHeader>
+                      <CardTitle className="text-white">Project Overview</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
                       <div>
-                        <p className="text-green-300 text-sm">Available Missions</p>
-                        <p className="text-white text-2xl font-bold">{missions.length}</p>
-                      </div>
-                      <Target className="w-8 h-8 text-green-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-purple-900/30 border-purple-400/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-purple-300 text-sm">Learning Tracks</p>
-                        <p className="text-white text-2xl font-bold">{tracks.length}</p>
-                      </div>
-                      <BookOpen className="w-8 h-8 text-purple-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-blue-900/30 border-blue-400/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-blue-300 text-sm">Video Resources</p>
-                        <p className="text-white text-2xl font-bold">{videoResources.length}</p>
-                      </div>
-                      <PlayCircle className="w-8 h-8 text-blue-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Project Context */}
-            <Card className="bg-white/5 border-white/10">
-              <CardHeader>
-                <CardTitle className="text-white">{projectTitle} - Learning Context</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {projectMetadata ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="text-green-400 font-medium mb-2">Problem You're Solving</h4>
+                        <h4 className="text-white font-medium mb-2">Problem Statement</h4>
                         <p className="text-gray-300 text-sm">{projectMetadata.problemStatement}</p>
                       </div>
                       <div>
-                        <h4 className="text-blue-400 font-medium mb-2">Your Solution Approach</h4>
+                        <h4 className="text-white font-medium mb-2">Solution Approach</h4>
                         <p className="text-gray-300 text-sm">{projectMetadata.solutionApproach}</p>
                       </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">
-                        {projectMetadata.industryDomain} domain
-                      </Badge>
-                      <Badge variant="secondary">
-                        {projectMetadata.systemArchitecture}
-                      </Badge>
-                      <Badge variant="secondary">
-                        {projectMetadata.realWorldApplication}
-                      </Badge>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <h4 className="text-orange-400 font-medium mb-2">Enhanced Project Context Not Available</h4>
-                    <p className="text-gray-300 text-sm">
-                      Detailed project metadata is not available for the {projectPhase} phase. 
-                      Enhanced context and AI-powered insights may become available as your project progresses.
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-4 justify-center">
-                      <Badge variant="secondary">{projectTitle}</Badge>
-                      <Badge variant="secondary">{projectPhase} phase</Badge>
-                    </div>
-                  </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary">{projectMetadata.industryDomain}</Badge>
+                        <Badge variant="outline">{projectMetadata.systemArchitecture}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            )}
 
-          {/* Missions Tab */}
-          <TabsContent value="missions" className="space-y-6">
-            <div className="grid gap-6">
-              {missions && missions.length > 0 ? missions.map((mission) => (
-                <Card key={mission.id} className="bg-white/5 border-white/10 hover:border-green-400/30 transition-all">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          mission.type === 'knowledge' ? 'bg-blue-500/20' :
-                          mission.type === 'practice' ? 'bg-green-500/20' :
-                          'bg-purple-500/20'
-                        }`}>
-                          {mission.type === 'knowledge' ? <Brain className="w-5 h-5 text-blue-400" /> :
-                           mission.type === 'practice' ? <Wrench className="w-5 h-5 text-green-400" /> :
-                           <Trophy className="w-5 h-5 text-purple-400" />}
-                        </div>
-                        <div>
-                          <CardTitle className="text-white">{mission.title}</CardTitle>
-                          <p className="text-gray-300 text-sm">{mission.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className="border-yellow-400/50 text-yellow-400">
-                          +{mission.xpReward} XP
-                        </Badge>
-                        <Badge variant={mission.type === 'knowledge' ? 'default' : mission.type === 'practice' ? 'secondary' : 'destructive'}>
-                          {mission.type}
+            {activeTab === 'missions' && (
+              <div className="space-y-4">
+                {missions.map((mission: any) => (
+                  <Card key={mission.id} className="bg-white/5 border-white/10">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-white">{mission.title}</CardTitle>
+                        <Badge variant="secondary" className="bg-blue-600/20 text-blue-300">
+                          {mission.xpReward} XP
                         </Badge>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {mission.tasks?.map((task) => (
-                        <div key={task.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <Button
-                              size="sm"
-                              variant={completedTasks.has(`${mission.id}-${task.id}`) ? "default" : "outline"}
-                              onClick={() => completeTask(mission.id, task.id)}
-                              className={completedTasks.has(`${mission.id}-${task.id}`) ? "bg-green-500 hover:bg-green-600" : ""}
-                            >
-                              {completedTasks.has(`${mission.id}-${task.id}`) ? (
-                                <CheckCircle className="w-4 h-4" />
-                              ) : task.type === 'study' ? (
-                                <BookOpen className="w-4 h-4" />
-                              ) : task.type === 'watch' ? (
-                                <PlayCircle className="w-4 h-4" />
-                              ) : (
-                                <Wrench className="w-4 h-4" />
-                              )}
-                            </Button>
-                            <div>
-                              <p className="text-white font-medium">{task.title}</p>
-                              <p className="text-gray-400 text-sm">{task.estimated}</p>
+                      <p className="text-gray-300 text-sm">{mission.description}</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {mission.tasks?.map((task: any) => (
+                          <div
+                            key={task.id}
+                            className={`p-3 rounded-lg border transition-all ${
+                              completedTasks.has(task.id)
+                                ? 'bg-green-600/20 border-green-400/30'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <h5 className="text-white font-medium">{task.title}</h5>
+                                <p className="text-gray-400 text-sm">{task.type} • {task.estimated}</p>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-yellow-400 text-sm">+{task.xpReward} XP</span>
+                                {/* Debug: Show task ID */}
+                                <span className="text-gray-500 text-xs" title="Task ID">{task.id}</span>
+                                {(() => {
+                                  const isCompleted = completedTasks.has(task.id);
+                                  console.log(`Task "${task.title}" (ID: ${task.id}): completed = ${isCompleted}`);
+                                  return isCompleted ? (
+                                    <Button
+                                      size="sm"
+                                      disabled
+                                      className="text-xs bg-green-600 text-white opacity-75 cursor-not-allowed"
+                                    >
+                                      ✓ Completed
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openTaskContent(task)}
+                                      className="text-xs text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-white"
+                                    >
+                                      Start
+                                    </Button>
+                                  );
+                                })()}
+                              </div>
                             </div>
                           </div>
-                          <Badge variant="outline" className="text-xs">+{task.xpReward} XP</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )) : (
-                <Card className="bg-white/5 border-white/10">
-                  <CardContent className="p-6 text-center">
-                    <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-white font-semibold mb-2">No Missions Available</h3>
-                    <p className="text-gray-300 text-sm">
-                      Learning missions are being generated for your project. Check back soon!
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </TabsContent>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
-          {/* Learning Tracks Tab */}
-          <TabsContent value="tracks" className="space-y-6">
-            <div className="grid gap-6">
-              {tracks.map((track) => (
-                <Card key={track.id} className="bg-white/5 border-white/10">
+            {activeTab === 'tracks' && (
+              <div className="space-y-4">
+                {tracks.map((track: any) => (
+                  <Card key={track.id} className="bg-white/5 border-white/10">
+                    <CardHeader>
+                      <CardTitle className="text-white">{track.title}</CardTitle>
+                      <p className="text-gray-300 text-sm">{track.description}</p>
+                      <div className="flex items-center space-x-4 text-sm">
+                        <span className="text-blue-400">{track.type}</span>
+                        <span className="text-gray-400">{track.estimatedTime}</span>
+                        <span className="text-orange-400">{track.difficulty}</span>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-300 text-sm mb-3">{track.projectRelevance}</p>
+                      <div className="text-sm text-gray-400">
+                        Progress: {track.progress?.completed || 0} / {track.progress?.total || 0} items
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {activeTab === 'progress' && phaseProgress && (
+              <div className="space-y-6">
+                {/* Phase Milestones */}
+                <Card className="bg-white/5 border-white/10">
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-white flex items-center">
-                          {track.type === 'theoretical' ? <Brain className="w-5 h-5 mr-2 text-blue-400" /> :
-                           track.type === 'multimedia' ? <PlayCircle className="w-5 h-5 mr-2 text-purple-400" /> :
-                           <Wrench className="w-5 h-5 mr-2 text-green-400" />}
-                          {track.title || 'Learning Track'}
-                        </CardTitle>
-                        <p className="text-gray-300 text-sm mt-1">{track.description || 'Learning content for your project'}</p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="outline">{track.difficulty || 'intermediate'}</Badge>
-                        <p className="text-gray-400 text-sm mt-1">{track.estimatedTime || (track as any).estimatedDuration || '30 min'}</p>
-                      </div>
-                    </div>
+                    <CardTitle className="text-white">Learning Journey</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-300 text-sm">Progress</span>
-                        <span className="text-white text-sm">
-                          {track.progress?.completed || 0} of {track.progress?.total || track.content?.length || 1}
-                        </span>
-                      </div>
-                      <Progress 
-                        value={track.progress ? (track.progress.completed / track.progress.total) * 100 : 0} 
-                        className="h-2" 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      {track.content?.slice(0, 3).map((module, idx) => (
-                        <div key={module.id || `module-${idx}`} className="flex items-center justify-between p-2 bg-white/5 rounded">
-                          <div className="flex items-center space-x-2">
-                            <FileText className="w-4 h-4 text-gray-400" />
-                            <span className="text-white text-sm">{module.title || `Module ${idx + 1}`}</span>
+                    <div className="space-y-4">
+                      {phaseProgress.milestones?.map((milestone: any, index: number) => (
+                        <div
+                          key={milestone.phase}
+                          className={`flex items-center space-x-4 p-3 rounded-lg ${
+                            milestone.completed
+                              ? 'bg-green-600/20'
+                              : milestone.current
+                              ? 'bg-blue-600/20'
+                              : 'bg-gray-600/20'
+                          }`}
+                        >
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              milestone.completed
+                                ? 'bg-green-500'
+                                : milestone.current
+                                ? 'bg-blue-500'
+                                : 'bg-gray-500'
+                            }`}
+                          >
+                            <span className="text-white text-sm">{index + 1}</span>
                           </div>
-                          <Badge variant="outline" className="text-xs">{module.duration || '15 min'}</Badge>
-                        </div>
-                      )) || []}
-                      {(track.content?.length || 0) > 3 && (
-                        <p className="text-gray-400 text-sm text-center">
-                          +{(track.content?.length || 0) - 3} more modules
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Progress Tab */}
-          <TabsContent value="progress" className="space-y-6">
-            {gamification && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Achievements */}
-                <Card className="bg-white/5 border-white/10">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <Award className="w-5 h-5 mr-2" />
-                      Achievements
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-green-400">{gamification.achievements.totalCompleted}</p>
-                        <p className="text-gray-300 text-sm">Tasks Completed</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-blue-400">{gamification.achievements.phasesCompleted}</p>
-                        <p className="text-gray-300 text-sm">Phases Completed</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-purple-400">{gamification.achievements.projectsAdvanced}</p>
-                        <p className="text-gray-300 text-sm">Projects Advanced</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-orange-400">{gamification.achievements.skillsMastered}</p>
-                        <p className="text-gray-300 text-sm">Skills Mastered</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Badges */}
-                <Card className="bg-white/5 border-white/10">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <Shield className="w-5 h-5 mr-2" />
-                      Badges
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 gap-3">
-                      {gamification.badges.map((badge) => (
-                        <div key={badge.id} className={`p-3 rounded-lg border ${
-                          badge.unlocked ? 'bg-green-500/10 border-green-400/30' : 'bg-gray-500/10 border-gray-400/30'
-                        }`}>
-                          <div className="flex items-center space-x-3">
-                            <div className={`text-2xl ${badge.unlocked ? '' : 'grayscale opacity-50'}`}>
-                              {badge.icon}
-                            </div>
-                            <div>
-                              <p className={`font-medium ${badge.unlocked ? 'text-white' : 'text-gray-400'}`}>
-                                {badge.title}
-                              </p>
-                              <p className="text-gray-400 text-sm">{badge.description}</p>
-                            </div>
+                          <div className="flex-1">
+                            <h4 className="text-white font-medium">{milestone.title}</h4>
+                            <p className="text-gray-300 text-sm">{milestone.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-yellow-400 text-sm">{milestone.requiredXP} XP</p>
                           </div>
                         </div>
                       ))}
@@ -825,8 +699,73 @@ export default function EnhancedLearningPage() {
                 </Card>
               </div>
             )}
-          </TabsContent>
-        </Tabs>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {/* Phase Progress */}
+            {phaseProgress && (
+              <Card className="bg-white/5 border-white/10">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Current Phase</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center">
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {phaseProgress.currentPhase}
+                    </h3>
+                    <p className="text-gray-300 text-sm mb-3">
+                      Phase {phaseProgress.phaseIndex + 1} of {phaseProgress.totalPhases}
+                    </p>
+                    <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+                      <div
+                        className={`bg-blue-500 h-2 rounded-full transition-all duration-300 ${
+                          phaseProgress.phaseIndex === 0 ? 'w-1/5' :
+                          phaseProgress.phaseIndex === 1 ? 'w-2/5' :
+                          phaseProgress.phaseIndex === 2 ? 'w-3/5' :
+                          phaseProgress.phaseIndex === 3 ? 'w-4/5' :
+                          phaseProgress.phaseIndex === 4 ? 'w-full' : 'w-1/5'
+                        }`}
+                      ></div>
+                    </div>
+                    <p className="text-gray-400 text-xs">
+                      Next: {phaseProgress.nextPhase || 'Complete'}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Badges */}
+            {gamification?.badges && (
+              <Card className="bg-white/5 border-white/10">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Badges</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {gamification.badges.map((badge: any) => (
+                      <div
+                        key={badge.id}
+                        className={`p-2 rounded-lg text-center ${
+                          badge.unlocked ? 'bg-yellow-600/20' : 'bg-gray-600/20'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{badge.icon}</div>
+                        <h4 className={`font-medium text-sm ${
+                          badge.unlocked ? 'text-yellow-400' : 'text-gray-400'
+                        }`}>
+                          {badge.title}
+                        </h4>
+                        <p className="text-xs text-gray-500">{badge.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

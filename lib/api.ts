@@ -389,6 +389,55 @@ export const api = {
     videoResources: (data: { projectId: string; topic: string; difficulty?: string }) =>
       apiClient.post<{ videos: any[] }>('/learning/video-resources', data),
     clearCache: (projectId: string) => apiClient.delete(`/learning/clear-cache/${projectId}`),
+    
+    // Content delivery endpoints
+    getModule: (moduleId: string) => 
+      apiClient.get<{ 
+        id: string; 
+        title: string; 
+        description: string; 
+        content: string; 
+        duration: string; 
+        difficulty: string; 
+        type: string; 
+        confidence: string; 
+      }>(`/learning/modules/${moduleId}`),
+    getExercise: (exerciseId: string) => 
+      apiClient.get<{ 
+        id: string; 
+        title: string; 
+        description: string; 
+        steps: any[]; 
+        expectedOutcome: string; 
+        estimatedTime: string; 
+        difficulty: string; 
+        skill: string; 
+      }>(`/learning/exercises/${exerciseId}`),
+    getVideo: (videoId: string) => 
+      apiClient.get<{ 
+        id: string; 
+        title: string; 
+        description: string; 
+        url: string; 
+        duration: string; 
+        difficulty: string; 
+        skill: string; 
+        topic: string; 
+        projectRelevance: string; 
+        instructor?: string; 
+      }>(`/learning/videos/${videoId}`),
+    
+    // Progress tracking endpoints
+    saveProgress: (data: { projectId: string; itemId: string; itemType: 'module' | 'exercise' | 'video'; completed: boolean; xpEarned?: number }) =>
+      apiClient.post<{ success: boolean; xpEarned: number }>('/learning/progress', data),
+    getProgress: (projectId: string) => 
+      apiClient.get<{ 
+        projectId: string; 
+        totalCompleted: number; 
+        totalXP: number; 
+        progress: any[]; 
+        summary: any; 
+      }>(`/learning/progress/${projectId}`),
   },
 
   // Analytics
